@@ -254,6 +254,23 @@
             border-color: var(--primary-dark);
         }
 
+        .btn-excel {
+            background: #16a34a;
+            border-color: #15803d;
+            color: #ffffff;
+        }
+
+        .btn-excel:hover {
+            background: #15803d;
+            border-color: #166534;
+        }
+
+        .btn-excel svg {
+            width: 16px;
+            height: 16px;
+            display: block;
+        }
+
         .container {
             padding: 0 12px 12px;
             display: flex;
@@ -683,6 +700,11 @@
         </div>
         <div class="header-actions">
             <div id="status-msg" class="status-msg"></div>
+            <button type="button" class="btn btn-icon btn-excel" onclick="exportAviosToXls()" title="Descargar Excel (.xls)" aria-label="Descargar Excel (.xls)">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zm0 2.5L17.5 8H14zM9.2 11h1.9l1.2 2 1.2-2h1.8l-2.1 3 2.2 3h-1.9l-1.3-2.1L10.8 17H9l2.2-3z"/>
+                </svg>
+            </button>
             <button type="button" class="btn btn-primary btn-icon" onclick="reloadData()" title="Refrescar" aria-label="Refrescar">&#x21bb;</button>
         </div>
     </header>
@@ -1956,6 +1978,101 @@
         function reloadData() {
             loadData();
         }
+
+        window.exportAviosToXls = function() {
+            const table = document.querySelector(".table-wrap table");
+            if (!table) {
+                setStatus("No se encontro la tabla para exportar.", "error");
+                return;
+            }
+
+            const tableClone = table.cloneNode(true);
+
+            // Convertir controles interactivos a texto para el archivo XLS.
+            tableClone.querySelectorAll("select").forEach(selectEl => {
+                const selected = (selectEl.options && selectEl.selectedIndex >= 0)
+                    ? selectEl.options[selectEl.selectedIndex]
+                    : null;
+                const textValue = selected ? selected.textContent : (selectEl.value || "");
+                const span = document.createElement("span");
+                span.textContent = String(textValue || "").trim();
+                selectEl.replaceWith(span);
+            });
+
+            tableClone.querySelectorAll('input[type="checkbox"]').forEach(checkEl => {
+                const span = document.createElement("span");
+                span.textContent = checkEl.checked ? "SI" : "";
+                checkEl.replaceWith(span);
+            });
+
+            const styleEl = document.querySelector("style");
+            const baseStyles = styleEl ? styleEl.textContent : "";
+            const marginsInches = "0.19685";
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, "0");
+            const dd = String(today.getDate()).padStart(2, "0");
+            const tabSuffix = selectedTab === TAB_OK_PREP ? "ok-preparado" : "por-preparar";
+            const fileName = `avios_${tabSuffix}_${yyyy}${mm}${dd}.xls`;
+
+            const exportHtml = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="UTF-8">
+<meta name="ProgId" content="Excel.Sheet">
+<meta name="Generator" content="Microsoft Excel">
+<!--[if gte mso 9]><xml>
+<x:ExcelWorkbook>
+  <x:ExcelWorksheets>
+    <x:ExcelWorksheet>
+      <x:Name>AVIOS</x:Name>
+      <x:WorksheetOptions>
+        <x:PageSetup>
+          <x:Layout x:Orientation="Portrait"/>
+          <x:PageMargins x:Top="${marginsInches}" x:Right="${marginsInches}" x:Bottom="${marginsInches}" x:Left="${marginsInches}"/>
+        </x:PageSetup>
+      </x:WorksheetOptions>
+    </x:ExcelWorksheet>
+  </x:ExcelWorksheets>
+</x:ExcelWorkbook>
+</xml><![endif]-->
+<style>
+${baseStyles}
+html, body { background: #ffffff; }
+body { margin: 0; padding: 0; overflow: visible; height: auto; }
+header, .toolbar-row, .hint, .context-menu, #status-msg, #loader { display: none !important; }
+.container { padding: 0; gap: 0; }
+.table-wrap { max-height: none !important; overflow: visible !important; border: none !important; }
+table { width: 100% !important; table-layout: fixed; border-collapse: collapse; }
+@page { size: A4 portrait; margin: 0.5cm; }
+@media print {
+  @page { size: A4 portrait; margin: 0.5cm; }
+}
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="table-wrap">
+      ${tableClone.outerHTML}
+    </div>
+  </div>
+</body>
+</html>`;
+
+            const blob = new Blob(["\ufeff", exportHtml], { type: "application/vnd.ms-excel;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            setStatus("Excel generado: " + fileName, "ok");
+        };
 
         document.addEventListener("click", function(event) {
             const menu = document.getElementById("avios-context-menu");
