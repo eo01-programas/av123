@@ -452,6 +452,18 @@
             text-align: left;
         }
 
+        .pr-cell {
+            width: 30px;
+            min-width: 30px;
+            max-width: 30px;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: clip;
+            padding-left: 2px;
+            padding-right: 2px;
+        }
+
         .pill {
             display: inline-flex;
             align-items: center;
@@ -735,6 +747,7 @@
                     <tr>
                         <th class="filterable-header" data-filter-field="HOD" style="width: 66px;">HOD</th>
                         <th class="filterable-header" data-filter-field="F.ING" style="width: 72px;">F.ING</th>
+                        <th style="width: 30px;">Pr</th>
                         <th class="filterable-header" data-filter-field="STATUS" style="width: 84px;">STATUS</th>
                         <th class="filterable-header" data-filter-field="CLIENTE" style="width: 70px;">CLIENTE</th>
                         <th class="filterable-header" data-filter-field="OC" style="width: 86px;">OC</th>
@@ -750,7 +763,7 @@
                     </tr>
                 </thead>
                 <tbody id="tbody-avios">
-                    <tr><td class="no-data" colspan="14">Cargando registros...</td></tr>
+                    <tr><td class="no-data" colspan="15">Cargando registros...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -774,7 +787,7 @@
     </div>
 
     <script>
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx60YybYKRbVhtY-ihpE0KOzi5ifRA2tXcP0LhtcnrcYnv5rZdCK0nMYeJSkVGWZfsuDQ/exec";
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzWV9x39Qw5EcQJtBP9Om8LZdYnFCZ_ikXFuHix9qMo2kWQKMXv2mJ_rLahzNOxRBmhhQ/exec";
         const SHEET_ID = "18cQuwqerdMggAeJ8TCUKA7-gujXsA91-CRMUTNpr8aQ";
 
         const TAB_POR_PREPARAR = "POR_PREPARAR";
@@ -784,6 +797,9 @@
         const ESTADO_AVIOS_PDTE = "PDTE";
         const AVIOS_STATUS_FILTER_ORDER = [
             "OK HAB",
+            "X HAB 1T",
+            "X HAB 2T",
+            "X HAB 3T",
             "X HAB",
             "X PROG HAB",
             "X ENM",
@@ -1242,7 +1258,9 @@
             const enumReady = evNorm === "OK ENM" || evNorm === "OK S/ENM" || evNorm === "OK PAQUETEO";
 
             if (estadoHab === "OK") return "OK Hab";
-            if (estadoHab === "PROG 1T" || estadoHab === "PROG 2T" || estadoHab === "PROG 3T") return "x Hab";
+            if (estadoHab === "PROG 1T") return "x Hab 1T";
+            if (estadoHab === "PROG 2T") return "x Hab 2T";
+            if (estadoHab === "PROG 3T") return "x Hab 3T";
             if (!estadoHab && enumReady) return "x prog Hab";
 
             return baseStatus || "";
@@ -1251,9 +1269,12 @@
         function getStatusRank(status) {
             const key = normalizeText(status);
             if (key === "OK HAB") return 1;
-            if (key === "X HAB") return 2;
-            if (key === "X PROG HAB") return 3;
-            if (key === "X ENM") return 4;
+            if (key === "X HAB 1T") return 2;
+            if (key === "X HAB 2T") return 3;
+            if (key === "X HAB 3T") return 4;
+            if (key === "X HAB") return 5;
+            if (key === "X PROG HAB") return 6;
+            if (key === "X ENM") return 7;
             return 99;
         }
 
@@ -1280,6 +1301,7 @@
                 fIng: formatValue(fIngRaw, "date") || "",
                 fIngDate,
                 fIngTs: (fIngDate && !isNaN(fIngDate.getTime())) ? new Date(fIngDate.getFullYear(), fIngDate.getMonth(), fIngDate.getDate()).getTime() : Number.MAX_SAFE_INTEGER,
+                pr: String(getVal(row, "Pr") || getVal(row, "PR") || "").trim(),
                 status,
                 statusRank: getStatusRank(status),
                 cliente: normalizeClientName(getVal(row, "CLIENTE")) || "",
@@ -1511,7 +1533,7 @@
             let cls = "pill-status-other";
 
             if (key === "OK HAB") cls = "pill-status-ok";
-            else if (key === "X HAB") cls = "pill-status-hab";
+            else if (key === "X HAB" || key.indexOf("X HAB ") === 0) cls = "pill-status-hab";
             else if (key === "X PROG HAB") cls = "pill-status-prog";
             else if (key === "X ENM") cls = "pill-status-enm";
 
@@ -1748,7 +1770,7 @@
 
             if (!groups.length) {
                 const label = selectedTab === TAB_OK_PREP ? "OK preparado" : "Por preparar";
-                tbody.innerHTML = `<tr><td class="no-data" colspan="14">No hay registros para la pestana ${escapeHtml(label)}.</td></tr>`;
+                tbody.innerHTML = `<tr><td class="no-data" colspan="15">No hay registros para la pestana ${escapeHtml(label)}.</td></tr>`;
                 return;
             }
 
@@ -1771,6 +1793,7 @@
                         `<tr class="${classes.join(" ")}"${urgentTitle}>` +
                             `<td class="date-cell">${escapeHtml(row.hod)}</td>` +
                             `<td class="date-cell">${escapeHtml(row.fIng)}</td>` +
+                            `<td class="pr-cell" title="${escapeHtml(row.pr)}">${escapeHtml(row.pr)}</td>` +
                             `<td class="center-cell">${renderStatusPill(row.status)}</td>` +
                             `<td class="center-cell text-clip" title="${escapeHtml(row.cliente)}">${escapeHtml(row.cliente)}</td>` +
                             `<td class="oc-cell" title="${escapeHtml(row.oc)}">${escapeHtml(row.oc)}</td>` +
@@ -1944,7 +1967,7 @@
             } catch (error) {
                 console.error(error);
                 const tbody = document.getElementById("tbody-avios");
-                tbody.innerHTML = `<tr><td class="no-data" colspan="14">Error al procesar datos: ${escapeHtml(error.message || String(error))}</td></tr>`;
+                tbody.innerHTML = `<tr><td class="no-data" colspan="15">Error al procesar datos: ${escapeHtml(error.message || String(error))}</td></tr>`;
                 rawData = [];
                 allRows = [];
                 updateCounters();
@@ -1968,7 +1991,7 @@
                 if (token !== lastLoadToken) return;
                 showLoader(false);
                 const tbody = document.getElementById("tbody-avios");
-                tbody.innerHTML = '<tr><td class="no-data" colspan="14">Error de conexion con Google Sheets.</td></tr>';
+                tbody.innerHTML = '<tr><td class="no-data" colspan="15">Error de conexion con Google Sheets.</td></tr>';
                 setStatus("Error de conexion con Google Sheets.", "error");
             };
 
