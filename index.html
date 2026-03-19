@@ -341,6 +341,11 @@
             line-height: 1.3;
         }
 
+        .tab-label-wrap {
+            display: inline-block;
+            line-height: 1.1;
+        }
+
         .tab-btn.active .tab-count {
             background: rgba(255, 255, 255, 0.22);
         }
@@ -728,6 +733,10 @@
                     Por preparar
                     <span id="count-por-preparar" class="tab-count">0</span>
                 </button>
+                <button id="tab-hc-prep" type="button" class="tab-btn" onclick="onTabChange('HC_PREP')">
+                    <span class="tab-label-wrap">Hoja Consumo<br>preparada</span>
+                    <span id="count-hc-prep" class="tab-count">0</span>
+                </button>
                 <button id="tab-ok-prep" type="button" class="tab-btn" onclick="onTabChange('OK_PREP')">
                     OK preparado
                     <span id="count-ok-prep" class="tab-count">0</span>
@@ -758,7 +767,7 @@
                         <th class="filterable-header" data-filter-field="PLANTA" style="width: 68px;">PLANTA</th>
                         <th class="filterable-header" data-filter-field="LINEA" style="width: 60px;">LINEA</th>
                         <th class="filterable-header" data-filter-field="HILO COSTURA" style="width: 96px;">HILO COSTURA</th>
-                        <th style="width: 70px;">avios_otros</th>
+                        <th style="width: 70px;">etiquetas</th>
                         <th style="width: 88px;">estado_avios</th>
                     </tr>
                 </thead>
@@ -791,10 +800,12 @@
         const SHEET_ID = "18cQuwqerdMggAeJ8TCUKA7-gujXsA91-CRMUTNpr8aQ";
 
         const TAB_POR_PREPARAR = "POR_PREPARAR";
+        const TAB_HC_PREP = "HC_PREP";
         const TAB_OK_PREP = "OK_PREP";
+        const ESTADO_AVIOS_PDT = "PDT";
+        const ESTADO_AVIOS_HC = "HC prep";
         const ESTADO_AVIOS_OK = "OK prep";
         const ESTADO_AVIOS_DESP = "DESPACHADO";
-        const ESTADO_AVIOS_PDTE = "PDTE";
         const AVIOS_STATUS_FILTER_ORDER = [
             "OK HAB",
             "X HAB 1T",
@@ -891,13 +902,17 @@
 
         function setActiveTabUi() {
             const porBtn = document.getElementById("tab-por-preparar");
+            const hcBtn = document.getElementById("tab-hc-prep");
             const okBtn = document.getElementById("tab-ok-prep");
             if (porBtn) porBtn.classList.toggle("active", selectedTab === TAB_POR_PREPARAR);
+            if (hcBtn) hcBtn.classList.toggle("active", selectedTab === TAB_HC_PREP);
             if (okBtn) okBtn.classList.toggle("active", selectedTab === TAB_OK_PREP);
         }
 
         function onTabChange(tabValue) {
-            selectedTab = (tabValue === TAB_OK_PREP) ? TAB_OK_PREP : TAB_POR_PREPARAR;
+            selectedTab = [TAB_POR_PREPARAR, TAB_HC_PREP, TAB_OK_PREP].includes(tabValue)
+                ? tabValue
+                : TAB_POR_PREPARAR;
             setActiveTabUi();
             hideAviosContextMenu();
             renderTable();
@@ -1187,7 +1202,8 @@
 
         function normalizeEstadoAvios(value) {
             const norm = normalizeText(value);
-            if (!norm || norm === "PDTE") return "";
+            if (!norm || norm === "PDTE" || norm === "PDT") return "";
+            if (norm === "HC PREP" || norm === "HC PREPARADA") return ESTADO_AVIOS_HC;
             if (norm === "OK PREP" || norm === "OK PREPARADO") return ESTADO_AVIOS_OK;
             if (norm === "DESPACHADO") return ESTADO_AVIOS_DESP;
             return String(value || "").trim();
@@ -1195,7 +1211,12 @@
 
         function getEstadoAviosUiValue(value) {
             const norm = normalizeEstadoAvios(value);
-            return norm || ESTADO_AVIOS_PDTE;
+            return norm || ESTADO_AVIOS_PDT;
+        }
+
+        function resolveEtiquetasColumnName() {
+            if (findHeaderIndexCaseInsensitive("etiquetas") !== -1) return "etiquetas";
+            return "avios_otros";
         }
 
         function normalizeHiloCosturaState(value) {
@@ -1292,6 +1313,11 @@
             const fIngDate = parseDateFromAny(fIngRaw);
             const status = getAviosStatusValue(row);
             const pdsValue = parseFloat(getVal(row, "PDS") || getVal(row, "PDS GIRADAS") || 0) || 0;
+            const etiquetasRaw = getVal(row, "etiquetas");
+            const aviosOtrosRaw = getVal(row, "avios_otros");
+            const etiquetasValue = (etiquetasRaw !== "" && etiquetasRaw !== null && etiquetasRaw !== undefined)
+                ? etiquetasRaw
+                : aviosOtrosRaw;
 
             return {
                 rowIndex,
@@ -1315,7 +1341,7 @@
                 linea: String(getVal(row, "LINEA") || "").trim(),
                 hiloCosturaRaw: getVal(row, "HILO COSTURA") || getVal(row, "HILO_COSTURA") || "",
                 hiloCosturaState: normalizeHiloCosturaState(getVal(row, "HILO COSTURA") || getVal(row, "HILO_COSTURA") || ""),
-                aviosOtros: parseBooleanish(getVal(row, "avios_otros")),
+                etiquetas: parseBooleanish(etiquetasValue),
                 estadoAviosRaw: getVal(row, "estado_avios"),
                 estadoAviosNorm: normalizeEstadoAvios(getVal(row, "estado_avios")),
                 urgent: isUrgentDate(fIngDate)
@@ -1325,7 +1351,7 @@
         function validateRequiredColumns() {
             const missing = [];
             if (findHeaderIndexCaseInsensitive("estado_avios") === -1) missing.push("estado_avios");
-            if (findHeaderIndexCaseInsensitive("avios_otros") === -1) missing.push("avios_otros");
+            if (findHeaderIndexCaseInsensitive("etiquetas") === -1 && findHeaderIndexCaseInsensitive("avios_otros") === -1) missing.push("etiquetas");
             if (findHeaderIndexCaseInsensitive("HILO COSTURA") === -1 && findHeaderIndexCaseInsensitive("HILO_COSTURA") === -1) missing.push("HILO COSTURA");
 
             const hasOc = findHeaderIndexCaseInsensitive("OC") !== -1;
@@ -1361,6 +1387,7 @@
             return allRows.filter(row => {
                 if (row.estadoAviosNorm === ESTADO_AVIOS_DESP) return false;
                 if (selectedTab === TAB_OK_PREP) return row.estadoAviosNorm === ESTADO_AVIOS_OK;
+                if (selectedTab === TAB_HC_PREP) return row.estadoAviosNorm === ESTADO_AVIOS_HC;
                 return row.estadoAviosNorm === "";
             });
         }
@@ -1507,18 +1534,23 @@
 
         function updateCounters() {
             const porPreparar = allRows.filter(row => row.estadoAviosNorm === "").length;
+            const hcPrep = allRows.filter(row => row.estadoAviosNorm === ESTADO_AVIOS_HC).length;
             const okPrep = allRows.filter(row => row.estadoAviosNorm === ESTADO_AVIOS_OK).length;
             const visibleRows = getVisibleRows();
             const visiblePdsTotal = visibleRows.reduce((sum, row) => sum + (Number(row.pdsValue) || 0), 0);
 
             const porEl = document.getElementById("count-por-preparar");
+            const hcEl = document.getElementById("count-hc-prep");
             const okEl = document.getElementById("count-ok-prep");
             const metaEl = document.getElementById("meta-registros");
 
             if (porEl) porEl.textContent = porPreparar.toLocaleString("es-ES");
+            if (hcEl) hcEl.textContent = hcPrep.toLocaleString("es-ES");
             if (okEl) okEl.textContent = okPrep.toLocaleString("es-ES");
             if (metaEl) {
-                const label = selectedTab === TAB_OK_PREP ? "prendas OK preparado" : "prendas por preparar";
+                let label = "prendas por preparar";
+                if (selectedTab === TAB_HC_PREP) label = "prendas Hoja Consumo preparada";
+                if (selectedTab === TAB_OK_PREP) label = "prendas OK preparado";
                 metaEl.textContent = formatThousands(visiblePdsTotal, 0) + " " + label;
             }
             refreshFilterableHeaderUi();
@@ -1561,7 +1593,7 @@
             const saveKey = makeSaveKey(row.rowIndex, "estado_avios");
             const disabled = savingCells.has(saveKey) ? " disabled" : "";
             const current = getEstadoAviosUiValue(row.estadoAviosNorm);
-            const options = [ESTADO_AVIOS_PDTE, ESTADO_AVIOS_OK, ESTADO_AVIOS_DESP];
+            const options = [ESTADO_AVIOS_PDT, ESTADO_AVIOS_HC, ESTADO_AVIOS_OK, ESTADO_AVIOS_DESP];
 
             const optionsHtml = options.map(opt => {
                 const selected = current === opt ? " selected" : "";
@@ -1571,11 +1603,12 @@
             return `<select class="table-select compact-select" onchange="handleEstadoAviosChange(${row.rowIndex}, this.value)"${disabled}>${optionsHtml}</select>`;
         }
 
-        function renderAviosOtrosCheckbox(row) {
-            const saveKey = makeSaveKey(row.rowIndex, "avios_otros");
-            const checked = row.aviosOtros ? " checked" : "";
+        function renderEtiquetasCheckbox(row) {
+            const etiquetasCol = resolveEtiquetasColumnName();
+            const saveKey = makeSaveKey(row.rowIndex, etiquetasCol);
+            const checked = row.etiquetas ? " checked" : "";
             const disabled = savingCells.has(saveKey) ? " disabled" : "";
-            return `<input type="checkbox" class="cell-checkbox" aria-label="avios_otros" onchange="handleAviosOtrosChange(${row.rowIndex}, this.checked)"${checked}${disabled}>`;
+            return `<input type="checkbox" class="cell-checkbox" aria-label="etiquetas" onchange="handleEtiquetasChange(${row.rowIndex}, this.checked)"${checked}${disabled}>`;
         }
 
         function populateAviosFilterSelect(fieldName) {
@@ -1769,7 +1802,9 @@
             updateCounters();
 
             if (!groups.length) {
-                const label = selectedTab === TAB_OK_PREP ? "OK preparado" : "Por preparar";
+                let label = "Por preparar";
+                if (selectedTab === TAB_HC_PREP) label = "Hoja Consumo preparada";
+                if (selectedTab === TAB_OK_PREP) label = "OK preparado";
                 tbody.innerHTML = `<tr><td class="no-data" colspan="15">No hay registros para la pestana ${escapeHtml(label)}.</td></tr>`;
                 return;
             }
@@ -1804,7 +1839,7 @@
                             `<td class="center-cell" title="${escapeHtml(row.planta)}">${escapeHtml(row.planta || "")}</td>` +
                             `<td class="center-cell" title="${escapeHtml(row.linea)}">${escapeHtml(row.linea || "")}</td>` +
                             `<td class="center-cell">${renderHiloCosturaPill(row.hiloCosturaState)}</td>` +
-                            `<td class="checkbox-cell">${renderAviosOtrosCheckbox(row)}</td>` +
+                            `<td class="checkbox-cell">${renderEtiquetasCheckbox(row)}</td>` +
                             `<td>${renderEstadoAviosSelect(row)}</td>` +
                         `</tr>`
                     );
@@ -1918,12 +1953,17 @@
             }
         }
 
+        window.handleEtiquetasChange = function(rowIndex, checked) {
+            const etiquetasCol = resolveEtiquetasColumnName();
+            updateEditableCell(rowIndex, etiquetasCol, checked, checked, "etiquetas actualizado.");
+        };
+
         window.handleAviosOtrosChange = function(rowIndex, checked) {
-            updateEditableCell(rowIndex, "avios_otros", checked, checked, "avios_otros actualizado.");
+            window.handleEtiquetasChange(rowIndex, checked);
         };
 
         window.handleEstadoAviosChange = function(rowIndex, selectedValue) {
-            const localValue = (selectedValue === ESTADO_AVIOS_PDTE) ? "" : selectedValue;
+            const localValue = (selectedValue === ESTADO_AVIOS_PDT) ? "" : selectedValue;
             updateEditableCell(rowIndex, "estado_avios", localValue, localValue, "estado_avios actualizado.");
         };
 
@@ -2035,7 +2075,9 @@
             const yyyy = today.getFullYear();
             const mm = String(today.getMonth() + 1).padStart(2, "0");
             const dd = String(today.getDate()).padStart(2, "0");
-            const tabSuffix = selectedTab === TAB_OK_PREP ? "ok-preparado" : "por-preparar";
+            let tabSuffix = "por-preparar";
+            if (selectedTab === TAB_HC_PREP) tabSuffix = "hoja-consumo-preparada";
+            if (selectedTab === TAB_OK_PREP) tabSuffix = "ok-preparado";
             const fileName = `avios_${tabSuffix}_${yyyy}${mm}${dd}.xls`;
 
             const exportHtml = `<!DOCTYPE html>
