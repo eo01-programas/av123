@@ -649,6 +649,22 @@
             box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
         }
 
+        .context-menu-input select[multiple] {
+            min-height: 130px;
+            padding: 4px;
+        }
+
+        .context-menu-input select[multiple] option {
+            padding: 4px 6px;
+        }
+
+        .context-menu-hint {
+            margin-top: 6px;
+            color: var(--gray-500);
+            font-size: 11px;
+            line-height: 1.35;
+        }
+
         .context-menu-buttons {
             padding: 8px 12px;
             display: flex;
@@ -784,9 +800,10 @@
         </div>
         <div class="context-menu-input">
             <input type="text" id="avios-filter-input" placeholder="Ingrese valor a filtrar..." autocomplete="off" style="display:none;">
-            <select id="avios-filter-select" style="display:none;">
-                <option value="">-- Seleccione un valor --</option>
-            </select>
+            <select id="avios-filter-select" style="display:none;"></select>
+            <div id="avios-filter-multi-hint" class="context-menu-hint" style="display:none;">
+                Puede seleccionar varias opciones con Ctrl/Cmd o Shift.
+            </div>
         </div>
         <div class="context-menu-buttons">
             <button class="context-menu-btn cancel" onclick="hideAviosContextMenu()">Cancelar</button>
@@ -836,6 +853,7 @@
         let lastLoadToken = 0;
         const savingCells = new Set();
         const AVIOS_DROPDOWN_FIELDS = ["HOD", "F.ING", "STATUS", "CLIENTE", "PLANTA", "LINEA", "HILO COSTURA"];
+        const AVIOS_MULTI_SELECT_FIELDS = ["STATUS"];
         const AVIOS_TEXT_FIELDS = ["OC", "COLOR"];
         let aviosHeaderFilters = [];
         let aviosContextMenuField = null;
@@ -1451,6 +1469,11 @@
             return aviosHeaderFilters.find(filter => String(filter.field || "").toUpperCase().trim() === key) || null;
         }
 
+        function isMultiSelectFilterField(fieldName) {
+            const key = String(fieldName || "").toUpperCase().trim();
+            return AVIOS_MULTI_SELECT_FIELDS.includes(key);
+        }
+
         function rowMatchesHeaderFilter(row, excludeField) {
             const excludeKey = String(excludeField || "").toUpperCase().trim();
             return aviosHeaderFilters.every(filter => {
@@ -1458,12 +1481,24 @@
                 if (excludeKey && String(filter.field || "").toUpperCase().trim() === excludeKey) return true;
 
                 const fieldValue = String(getFilterFieldValue(row, filter.field) || "").toUpperCase().trim();
-                const filterValue = String(filter.value || "").toUpperCase().trim();
 
                 if (filter.type === "text") {
+                    const filterValue = String(filter.value || "").toUpperCase().trim();
                     if (!filterValue) return true;
                     return fieldValue.indexOf(filterValue) !== -1;
                 }
+
+                if (filter.type === "select-multi") {
+                    const values = Array.isArray(filter.values) ? filter.values : [];
+                    const normalizedValues = values
+                        .map(value => String(value || "").toUpperCase().trim())
+                        .filter(Boolean);
+                    if (!normalizedValues.length) return true;
+                    if (fieldValue === "") return normalizedValues.includes("__EMPTY__");
+                    return normalizedValues.includes(fieldValue);
+                }
+
+                const filterValue = String(filter.value || "").toUpperCase().trim();
 
                 if (filterValue === "__EMPTY__") return fieldValue === "";
                 return fieldValue === filterValue;
@@ -1615,9 +1650,13 @@
             const select = document.getElementById("avios-filter-select");
             if (!select) return;
 
-            while (select.options.length > 1) {
-                select.remove(1);
+            while (select.options.length > 0) {
+                select.remove(0);
             }
+
+            const isMultiSelect = isMultiSelectFilterField(fieldName);
+            select.multiple = isMultiSelect;
+            select.size = isMultiSelect ? 6 : 1;
 
             const values = new Set();
             let hasEmptyValue = false;
@@ -1637,6 +1676,13 @@
                 return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
             });
 
+            if (!isMultiSelect) {
+                const defaultOption = document.createElement("option");
+                defaultOption.value = "";
+                defaultOption.textContent = "-- Seleccione un valor --";
+                select.appendChild(defaultOption);
+            }
+
             sortedValues.forEach(value => {
                 const option = document.createElement("option");
                 option.value = value;
@@ -1652,7 +1698,22 @@
             }
 
             const activeFilter = getActiveAviosHeaderFilter(fieldName);
-            if (activeFilter && activeFilter.type === "select") {
+            if (isMultiSelect) {
+                let selectedValues = [];
+                if (activeFilter && activeFilter.type === "select-multi" && Array.isArray(activeFilter.values)) {
+                    selectedValues = activeFilter.values;
+                } else if (activeFilter && activeFilter.type === "select") {
+                    selectedValues = [activeFilter.value];
+                }
+
+                const selectedSet = new Set(selectedValues.map(value => String(value || "").trim()));
+                Array.from(select.options).forEach(option => {
+                    option.selected = selectedSet.has(String(option.value || "").trim());
+                });
+
+                const optionCount = select.options.length || 1;
+                select.size = Math.min(Math.max(optionCount, 4), 10);
+            } else if (activeFilter && activeFilter.type === "select") {
                 select.value = activeFilter.value || "";
             } else {
                 select.selectedIndex = 0;
@@ -1669,18 +1730,22 @@
             const input = document.getElementById("avios-filter-input");
             const select = document.getElementById("avios-filter-select");
             const fieldLabel = document.getElementById("avios-filter-field");
+            const multiHint = document.getElementById("avios-filter-multi-hint");
             if (!menu || !input || !select || !fieldLabel) return;
 
             fieldLabel.textContent = fieldName;
 
             if (AVIOS_DROPDOWN_FIELDS.includes(fieldName)) {
+                const isMultiSelect = isMultiSelectFilterField(fieldName);
                 input.style.display = "none";
                 select.style.display = "block";
                 populateAviosFilterSelect(fieldName);
+                if (multiHint) multiHint.style.display = isMultiSelect ? "block" : "none";
                 setTimeout(() => select.focus(), 0);
             } else {
                 select.style.display = "none";
                 input.style.display = "block";
+                if (multiHint) multiHint.style.display = "none";
                 const activeFilter = getActiveAviosHeaderFilter(fieldName);
                 input.value = (activeFilter && activeFilter.type === "text")
                     ? String(activeFilter.value || "")
@@ -1690,8 +1755,8 @@
 
             menu.classList.add("active");
 
-            const menuWidth = 220;
-            const menuHeight = 170;
+            const menuWidth = menu.offsetWidth || 220;
+            const menuHeight = menu.offsetHeight || 170;
             const maxLeft = Math.max(8, window.innerWidth - menuWidth - 8);
             const maxTop = Math.max(8, window.innerHeight - menuHeight - 8);
             const left = Math.min(event.clientX, maxLeft);
@@ -1728,12 +1793,24 @@
             let nextFilter = null;
 
             if (AVIOS_DROPDOWN_FIELDS.includes(aviosContextMenuField)) {
-                const value = String(select.value || "").trim();
-                if (!value) {
-                    alert("Por favor seleccione un valor para filtrar");
-                    return;
+                const isMultiSelect = isMultiSelectFilterField(aviosContextMenuField);
+                if (isMultiSelect) {
+                    const values = Array.from(select.selectedOptions || [])
+                        .map(option => String(option.value || "").trim())
+                        .filter(Boolean);
+                    if (!values.length) {
+                        alert("Por favor seleccione al menos un valor para filtrar");
+                        return;
+                    }
+                    nextFilter = { field: aviosContextMenuField, type: "select-multi", values };
+                } else {
+                    const value = String(select.value || "").trim();
+                    if (!value) {
+                        alert("Por favor seleccione un valor para filtrar");
+                        return;
+                    }
+                    nextFilter = { field: aviosContextMenuField, type: "select", value };
                 }
-                nextFilter = { field: aviosContextMenuField, type: "select", value };
             } else if (AVIOS_TEXT_FIELDS.includes(aviosContextMenuField)) {
                 const value = String(input.value || "").trim();
                 if (!value) {
