@@ -1305,6 +1305,10 @@
             return baseStatus || "";
         }
 
+        function isDepuradoHabilitadoRow(row) {
+            return (getVal(row, "estado_habilitado") || getVal(row, "ESTADO_HABILITADO") || getVal(row, "ESTADO HABILITADO") || "").toString().toUpperCase().trim() === "DEPURADO";
+        }
+
         function getStatusRank(status) {
             const key = normalizeText(status);
             if (key === "OK HAB") return 1;
@@ -1391,6 +1395,7 @@
                 if (!row || !Array.isArray(row)) continue;
                 const hasData = row.some(cell => String(cell === null || cell === undefined ? "" : cell).trim() !== "");
                 if (!hasData) continue;
+                if (isDepuradoHabilitadoRow(row)) continue;
                 allRows.push(createRowModel(i, row));
             }
         }
