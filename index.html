@@ -1237,12 +1237,13 @@
             return "avios_otros";
         }
 
-        function normalizeHiloCosturaState(value) {
+                function normalizeHiloCosturaState(value) {
             const norm = normalizeText(value);
             if (!norm || norm === "PENDIENTE" || norm === "PDTE") return "PDTE";
             if (norm === "EN LABORATORIO") return "EN LABORATORIO";
             if (norm === "POR TENIR" || norm === "EN TENIDO") return "POR TENIR";
             if (norm === "EN CALIDAD" || norm === "OK" || norm === "OK COMPRA" || norm === "OK RE-ASIGNADO") return "EN CALIDAD";
+            if (norm === "ENTREGADO PARCIAL") return "ENTREGADO PARCIAL";
             if (norm === "DESPACHADO") return "DESPACHADO";
             return String(value || "").trim();
         }
@@ -1253,6 +1254,7 @@
             if (key === "EN LABORATORIO") return "XLab";
             if (key === "POR TENIR") return "XTeñir";
             if (key === "EN CALIDAD") return "XCalidad";
+            if (key === "ENTREGADO PARCIAL") return "Ent.Parc";
             if (key === "DESPACHADO") return "✓";
             return String(state || "").trim();
         }
@@ -1612,15 +1614,16 @@
             return `<span class="pill ${cls}" title="${escapeHtml(value)}">${escapeHtml(value)}</span>`;
         }
 
-        function renderHiloCosturaPill(state) {
+                function renderHiloCosturaPill(state) {
             const value = String(state || "").trim();
             const key = normalizeText(value);
 
             if (key === "PDTE" || key === "PENDIENTE") return `<span class="pill pill-hilo-pdte" title="PDTE">PDTE</span>`;
             if (key === "EN LABORATORIO") return `<span class="pill pill-hilo-lab" title="XLab">XLab</span>`;
-            if (key === "POR TENIR") return `<span class="pill pill-hilo-tenir" title="XTe\u00F1ir">XTe\u00F1ir</span>`;
+            if (key === "POR TENIR") return `<span class="pill pill-hilo-tenir" title="XTeñir">XTeñir</span>`;
             if (key === "EN CALIDAD") return `<span class="pill pill-hilo-calidad" title="XCalidad">XCalidad</span>`;
-            if (key === "DESPACHADO") return `<span class="pill pill-hilo-desp" title="DESPACHADO">&#10003;</span>`;
+            if (key === "ENTREGADO PARCIAL") return `<span class="pill pill-hilo-other" title="${escapeHtml(value)}">Ent.Parc</span>`;
+            if (key === "DESPACHADO") return `<span class="pill pill-hilo-desp" title="DESPACHADO">✓</span>`;
 
             return `<span class="pill pill-hilo-other" title="${escapeHtml(value || "-")}">${escapeHtml(value || "-")}</span>`;
         }
